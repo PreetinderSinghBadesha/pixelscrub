@@ -3,6 +3,3 @@ dist/
 coverage/
 *.tsbuildinfo
 .DS_Store
-
-# local editor/agent config
-.claude/

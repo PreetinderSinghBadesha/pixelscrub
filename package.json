@@ -15,6 +15,18 @@
     "upload"
   ],
   "license": "MIT",
+  "author": {
+    "name": "Preetinder Singh Badesha",
+    "url": "https://github.com/PreetinderSinghBadesha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PreetinderSinghBadesha/pixelscrub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PreetinderSinghBadesha/pixelscrub/issues"
+  },
+  "homepage": "https://github.com/PreetinderSinghBadesha/pixelscrub#readme",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
