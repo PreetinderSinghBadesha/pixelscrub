@@ -1,6 +1,6 @@
 {
   "name": "pixelscrub",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Zero-dependency, client-side image sanitizer. Strips EXIF metadata, resizes, and re-encodes images entirely in the browser via <canvas>.",
   "keywords": [
     "exif",
