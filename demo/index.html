@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>pixelscrub demo</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #14161a;
+        --muted: #5c6470;
+        --line: #dfe3e8;
+        --accent: #2f6df6;
+        --ok: #1a7f4b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #14161a;
+          --fg: #e9ecf1;
+          --muted: #98a1ae;
+          --line: #2a2f38;
+          --accent: #7aa2ff;
+          --ok: #4ec98a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 2rem 1.25rem 4rem;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          15px/1.55 ui-sans-serif,
+          system-ui,
+          -apple-system,
+          Segoe UI,
+          Roboto,
+          sans-serif;
+      }
+      main {
+        max-width: 60rem;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0 0 0.25rem;
+      }
+      p.lede {
+        color: var(--muted);
+        margin: 0 0 1.75rem;
+      }
+      #drop {
+        border: 2px dashed var(--line);
+        border-radius: 12px;
+        padding: 2.5rem 1rem;
+        text-align: center;
+        color: var(--muted);
+        cursor: pointer;
+        transition: border-color 0.15s ease;
+      }
+      #drop:hover,
+      #drop.over {
+        border-color: var(--accent);
+        color: var(--fg);
+      }
+      #drop input {
+        display: none;
+      }
+      fieldset {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        margin: 1.5rem 0;
+        padding: 1rem 1.25rem 1.25rem;
+      }
+      legend {
+        padding: 0 0.4rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+        gap: 1rem;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin-bottom: 0.3rem;
+      }
+      input[type='number'],
+      select {
+        width: 100%;
+        padding: 0.45rem 0.55rem;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+      }
+      .results {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+        gap: 1.25rem;
+      }
+      figure {
+        margin: 0;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      figure img {
+        display: block;
+        width: 100%;
+        height: auto;
+        background: repeating-conic-gradient(#8883 0% 25%, transparent 0% 50%) 50% / 18px 18px;
+      }
+      figcaption {
+        padding: 0.75rem 0.9rem;
+        border-top: 1px solid var(--line);
+        font-size: 0.85rem;
+      }
+      figcaption b {
+        display: block;
+        margin-bottom: 0.25rem;
+      }
+      dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.15rem 0.75rem;
+        color: var(--muted);
+      }
+      dd {
+        margin: 0;
+        color: var(--fg);
+        font-variant-numeric: tabular-nums;
+      }
+      .verdict {
+        margin-top: 1rem;
+        font-weight: 600;
+        color: var(--ok);
+      }
+      .error {
+        margin-top: 1rem;
+        color: #d1495b;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.85rem;
+      }
+      footer {
+        margin-top: 2.5rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>pixelscrub</h1>
+      <p class="lede">
+        Drop a photo straight off a phone. Nothing is uploaded — the bytes never leave this tab.
+      </p>
+
+      <div id="drop">
+        <strong>Drop an image here</strong> or click to choose one
+        <input id="file" type="file" accept="image/*" />
+      </div>
+
+      <fieldset>
+        <legend>Options</legend>
+        <div class="controls">
+          <div>
+            <label for="maxWidth">maxWidth</label>
+            <input id="maxWidth" type="number" min="1" placeholder="no limit" value="1920" />
+          </div>
+          <div>
+            <label for="maxHeight">maxHeight</label>
+            <input id="maxHeight" type="number" min="1" placeholder="no limit" />
+          </div>
+          <div>
+            <label for="quality">quality</label>
+            <input id="quality" type="number" min="0" max="1" step="0.05" value="0.85" />
+          </div>
+          <div>
+            <label for="outputFormat">outputFormat</label>
+            <select id="outputFormat">
+              <option value="image/webp">image/webp</option>
+              <option value="image/jpeg">image/jpeg</option>
+              <option value="image/png">image/png</option>
+            </select>
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="results">
+        <figure>
+          <img id="beforeImg" alt="" />
+          <figcaption>
+            <b>Original</b>
+            <dl>
+              <dt>name</dt>
+              <dd id="beforeName">—</dd>
+              <dt>type</dt>
+              <dd id="beforeType">—</dd>
+              <dt>size</dt>
+              <dd id="beforeSize">—</dd>
+              <dt>pixels</dt>
+              <dd id="beforeDims">—</dd>
+              <dt>EXIF orientation</dt>
+              <dd id="beforeOrientation">—</dd>
+            </dl>
+          </figcaption>
+        </figure>
+
+        <figure>
+          <img id="afterImg" alt="" />
+          <figcaption>
+            <b>Sanitized</b>
+            <dl>
+              <dt>name</dt>
+              <dd id="afterName">—</dd>
+              <dt>type</dt>
+              <dd id="afterType">—</dd>
+              <dt>size</dt>
+              <dd id="afterSize">—</dd>
+              <dt>pixels</dt>
+              <dd id="afterDims">—</dd>
+              <dt>EXIF orientation</dt>
+              <dd id="afterOrientation">—</dd>
+            </dl>
+          </figcaption>
+        </figure>
+      </div>
+
+      <p class="verdict" id="verdict"></p>
+      <p class="error" id="error"></p>
+
+      <footer>
+        Both previews are rendered with <code>image-orientation: none</code>, so the original shows
+        its raw pixel grid — a portrait photo that looks sideways on the left and upright on the
+        right is the orientation fix doing its job.
+      </footer>
+    </main>
+
+    <script type="module">
+      import { sanitizeImage, readOrientation } from '../dist/index.js';
+
+      const $ = (id) => document.getElementById(id);
+      const drop = $('drop');
+      const fileInput = $('file');
+
+      // Show raw pixels in both previews so the orientation fix is visible.
+      for (const img of [$('beforeImg'), $('afterImg')]) img.style.imageOrientation = 'none';
+
+      drop.addEventListener('click', () => fileInput.click());
+      drop.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        drop.classList.add('over');
+      });
+      drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+      drop.addEventListener('drop', (event) => {
+        event.preventDefault();
+        drop.classList.remove('over');
+        const file = event.dataTransfer?.files?.[0];
+        if (file) run(file);
+      });
+      fileInput.addEventListener('change', () => {
+        const file = fileInput.files?.[0];
+        if (file) run(file);
+      });
+
+      for (const id of ['maxWidth', 'maxHeight', 'quality', 'outputFormat']) {
+        $(id).addEventListener('change', () => {
+          const file = fileInput.files?.[0] ?? lastFile;
+          if (file) run(file);
+        });
+      }
+
+      let lastFile = null;
+
+      function options() {
+        const numeric = (id) => {
+          const value = Number($(id).value);
+          return $(id).value === '' || Number.isNaN(value) ? undefined : value;
+        };
+        return {
+          maxWidth: numeric('maxWidth'),
+          maxHeight: numeric('maxHeight'),
+          quality: numeric('quality'),
+          outputFormat: $('outputFormat').value,
+        };
+      }
+
+      async function run(file) {
+        lastFile = file;
+        $('error').textContent = '';
+        $('verdict').textContent = 'Working…';
+
+        try {
+          const head = await file.slice(0, 256 * 1024).arrayBuffer();
+          await describe(file, readOrientation(head), 'before');
+
+          const started = performance.now();
+          const result = await sanitizeImage(file, options());
+          const elapsed = Math.round(performance.now() - started);
+
+          const outputHead = await result.slice(0, 256 * 1024).arrayBuffer();
+          await describe(result, readOrientation(outputHead), 'after');
+
+          const saved = 1 - result.size / file.size;
+          $('verdict').textContent =
+            `Sanitized in ${elapsed}ms · ${(saved * 100).toFixed(1)}% smaller · ` +
+            `metadata stripped, orientation baked in.`;
+        } catch (error) {
+          $('verdict').textContent = '';
+          $('error').textContent = `${error.name}: ${error.message} (code: ${error.code ?? 'n/a'})`;
+        }
+      }
+
+      async function describe(file, orientation, prefix) {
+        const url = URL.createObjectURL(file);
+        const img = $(`${prefix}Img`);
+        const previous = img.dataset.url;
+        img.src = url;
+        img.dataset.url = url;
+        if (previous) URL.revokeObjectURL(previous);
+
+        $(`${prefix}Name`).textContent = file.name ?? '(blob)';
+        $(`${prefix}Type`).textContent = file.type || '(unknown)';
+        $(`${prefix}Size`).textContent = formatBytes(file.size);
+        $(`${prefix}Orientation`).textContent = orientation === 1 ? '1 (none)' : String(orientation);
+
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'none' });
+        $(`${prefix}Dims`).textContent = `${bitmap.width} × ${bitmap.height}`;
+        bitmap.close();
+      }
+
+      function formatBytes(bytes) {
+        if (bytes < 1024) return `${bytes} B`;
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+        return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+      }
+    </script>
+  </body>
+</html>
