@@ -5,17 +5,6 @@ import { isOutputFormat, replaceExtension, resolveOutputFormat } from './formats
 import { PixelScrubError } from './types.js';
 import type { Orientation, OutputFormat, SanitizeOptions } from './types.js';
 
-export { PixelScrubError } from './types.js';
-export type {
-  Orientation,
-  OutputFormat,
-  PixelScrubErrorCode,
-  ResizePlan,
-  SanitizeOptions,
-} from './types.js';
-export { extensionFor, replaceExtension, supportsEncoding } from './formats.js';
-export { readOrientation } from './exif.js';
-
 const DEFAULT_QUALITY = 0.85;
 const DEFAULT_FORMAT: OutputFormat = 'image/webp';
 /** Older iOS Safari silently returns a blank canvas past roughly 4096x4096. */
@@ -102,7 +91,12 @@ function assertImageType(file: Blob): void {
   }
 }
 
-function resolveOptions(options: SanitizeOptions | undefined): ResolvedOptions {
+/**
+ * Also the validation seam for batch runs: bad options fail the same way for
+ * every image, so `sanitizeImages` checks them once up front rather than
+ * reporting the same programmer error once per file.
+ */
+export function resolveOptions(options: SanitizeOptions | undefined): ResolvedOptions {
   return {
     maxWidth: positiveBound(options?.maxWidth, 'maxWidth'),
     maxHeight: positiveBound(options?.maxHeight, 'maxHeight'),

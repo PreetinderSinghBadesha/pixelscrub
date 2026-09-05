@@ -21,6 +21,34 @@ export interface SanitizeOptions {
   maxCanvasDimension?: number;
 }
 
+export interface SanitizeBatchOptions extends SanitizeOptions {
+  /**
+   * How many images to process at once. Default: 4.
+   *
+   * Decoding is the memory-hungry step — a 12MP photo is roughly 48MB as RGBA
+   * before any scratch canvases — so this is a memory ceiling more than a speed
+   * dial. Lower it if you are sanitizing very large images on phones.
+   */
+  concurrency?: number;
+  /** Cancels the run. Already-finished results are discarded; see `onProgress`. */
+  signal?: AbortSignal;
+  /** Called as each image settles, in completion order. */
+  onProgress?: (progress: BatchProgress) => void;
+}
+
+/** The outcome of one image in a batch, mirroring `Promise.allSettled`. */
+export type BatchResult =
+  | { status: 'fulfilled'; index: number; input: File | Blob; file: File }
+  | { status: 'rejected'; index: number; input: File | Blob; reason: Error };
+
+export interface BatchProgress {
+  /** How many images have settled, successfully or not. */
+  completed: number;
+  total: number;
+  /** The result that just settled. */
+  result: BatchResult;
+}
+
 export type PixelScrubErrorCode =
   /** Input was not a Blob, or its MIME type is plainly not an image. */
   | 'INVALID_INPUT'

@@ -58,6 +58,41 @@ The returned `File`:
 
 A `Blob` with no name is returned as `image.<ext>`.
 
+### `sanitizeImages(files, options?): Promise<BatchResult[]>`
+
+For multi-select uploads. Takes every `sanitizeImage` option plus three of its own.
+
+```js
+import { sanitizeImages } from 'pixelscrub';
+
+const results = await sanitizeImages(input.files, {
+  maxWidth: 1920,
+  concurrency: 4,
+  onProgress: ({ completed, total }) => setProgress(completed / total),
+});
+
+const body = new FormData();
+for (const result of results) {
+  if (result.status === 'fulfilled') body.append('photos', result.file);
+  else console.warn(`Skipped ${result.input.name}: ${result.reason.message}`);
+}
+```
+
+| Option        | Type                             | Default | Notes                                                     |
+| ------------- | -------------------------------- | ------- | --------------------------------------------------------- |
+| `concurrency` | `number`                         | `4`     | How many images are decoded at once.                       |
+| `signal`      | `AbortSignal`                    | —       | Cancels the run.                                           |
+| `onProgress`  | `(progress: BatchProgress) => void` | —    | Called as each image settles, in completion order.         |
+
+This is deliberately **not** `Promise.all(files.map(sanitizeImage))`:
+
+- **Results are settled, not all-or-nothing.** One corrupt file among thirty is a single `rejected` entry, not a lost batch. Results stay in input order, so `results[i]` always describes `files[i]`.
+- **Concurrency is bounded.** The constraint is memory, not CPU — a decoded 12MP photo is roughly 48MB of RGBA before scratch canvases, and mobile Safari kills the tab rather than reporting an allocation failure. Lower `concurrency` for very large images on phones.
+
+Options that could never work for any image — a negative `maxWidth`, `concurrency: 0` — reject the call itself rather than returning one identical failure per file.
+
+Aborting rejects the returned promise with the signal's reason and discards finished results, matching `fetch`. If you want to keep the work that completed, collect it in `onProgress` as it arrives.
+
 ### Sizing
 
 Scale is computed against the orientation-corrected dimensions and capped at 1:
