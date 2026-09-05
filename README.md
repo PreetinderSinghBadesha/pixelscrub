@@ -48,6 +48,7 @@ It resolves to a `File`, not a `Blob`, so it drops into existing `FormData` uplo
 | `maxHeight`          | `number`                                        | no limit       | Bounds the **displayed** height.                                             |
 | `quality`            | `number` (0–1)                                  | `0.85`         | Ignored for `image/png`. Values outside the range are clamped.               |
 | `outputFormat`       | `'image/webp' \| 'image/jpeg' \| 'image/png'`   | `'image/webp'` | Falls back automatically where the browser cannot encode it.                 |
+| `watermark`          | `Watermark`                                     | none           | Text or a logo, drawn after resizing and rotation. See [watermarks](#watermarks). |
 | `maxCanvasDimension` | `number`                                        | `4096`         | Hard ceiling on either canvas axis. See [canvas limits](#canvas-size-limits). |
 
 The returned `File`:
@@ -92,6 +93,44 @@ This is deliberately **not** `Promise.all(files.map(sanitizeImage))`:
 Options that could never work for any image — a negative `maxWidth`, `concurrency: 0` — reject the call itself rather than returning one identical failure per file.
 
 Aborting rejects the returned promise with the signal's reason and discards finished results, matching `fetch`. If you want to keep the work that completed, collect it in `onProgress` as it arrives.
+
+### Watermarks
+
+```js
+await sanitizeImage(file, {
+  maxWidth: 1920,
+  watermark: { text: '© 2026 Example', position: 'bottom-right' },
+});
+```
+
+| Option       | Type                            | Default          | Notes                                          |
+| ------------ | ------------------------------- | ---------------- | ---------------------------------------------- |
+| `text`       | `string`                        | —                | Mutually exclusive with `image`.               |
+| `image`      | `Blob \| CanvasImageSource`     | —                | A logo. Mutually exclusive with `text`.        |
+| `position`   | `WatermarkPosition`             | `'bottom-right'` | Nine-point grid, e.g. `'top-left'`, `'center'`. |
+| `size`       | `number` (0–1)                  | `0.04` / `0.15`  | Font size for text, drawn width for an image.  |
+| `margin`     | `number` (0–1)                  | `0.03`           | Inset from the edge.                           |
+| `opacity`    | `number` (0–1)                  | `0.8`            |                                                |
+| `color`      | `string`                        | white            | Text only.                                     |
+| `fontFamily` | `string`                        | system sans      | Text only.                                     |
+| `fontWeight` | `string`                        | `'600'`          | Text only.                                     |
+| `outline`    | `string \| false`               | translucent black | Text only. See below.                         |
+
+Two things about this are deliberate.
+
+**Sizes are fractions of the image's shorter side, not pixels.** A watermark specified as `24px` is either illegible on a thumbnail or enormous on a full-resolution photo, and you rarely control which you are handed. One config now reads correctly at both ends: on a 1000×500 output the default text size resolves to 20px, and the same option on a 200×100 thumbnail resolves to 4px.
+
+**Text is stroked before it is filled.** White text on a white background is invisible — measurably so: without the outline it produces literally zero distinguishable pixels. The default translucent-black stroke is what makes a watermark readable over a snow scene, a document scan, or a sky. Pass `outline: false` if you know what the background is.
+
+The watermark is drawn after the orientation transform is reset, so it sits on the image as viewed rather than being rotated along with a portrait photo.
+
+Decoding a `Blob` watermark costs a decode per call. When watermarking many images, decode once and pass the result:
+
+```js
+const logo = await createImageBitmap(logoBlob);
+const results = await sanitizeImages(files, { watermark: { image: logo } });
+logo.close();
+```
 
 ### Sizing
 
@@ -157,6 +196,8 @@ JPEG has no alpha channel, so a transparent source encodes as black. When the ou
 ### What is not stripped
 
 Only what the canvas discards, which is everything outside the pixel grid: EXIF, GPS, IPTC, XMP, thumbnails, maker notes. The output is a freshly encoded image, so the only remaining metadata is whatever the browser's own encoder writes — a color profile, and nothing identifying.
+
+A watermark is the one thing pixelscrub *adds*, and it is added to the pixels, not the metadata — it survives re-encoding, screenshots, and further metadata stripping, which is the point.
 
 ## Browser support
 

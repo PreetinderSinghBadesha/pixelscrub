@@ -11,6 +11,8 @@ export type {
   ResizePlan,
   SanitizeBatchOptions,
   SanitizeOptions,
+  Watermark,
+  WatermarkPosition,
 } from './types.js';
 
 export { extensionFor, replaceExtension, supportsEncoding } from './formats.js';

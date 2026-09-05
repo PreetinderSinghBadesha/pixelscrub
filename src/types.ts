@@ -4,6 +4,60 @@ export type OutputFormat = 'image/webp' | 'image/jpeg' | 'image/png';
 /** The eight EXIF orientation values defined by the TIFF spec. */
 export type Orientation = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 
+/** Where a watermark sits on the output. */
+export type WatermarkPosition =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'center-left'
+  | 'center'
+  | 'center-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+/**
+ * A watermark drawn onto the output.
+ *
+ * Sizes are fractions of the image's *shorter* side rather than pixels, because
+ * a watermark specified in pixels is either illegible on a thumbnail or
+ * enormous on a full-resolution photo. Pass exactly one of `text` or `image`.
+ */
+export interface Watermark {
+  /** Text to draw. Mutually exclusive with `image`. */
+  text?: string;
+  /**
+   * Image to draw. Mutually exclusive with `text`.
+   *
+   * A `Blob` is decoded on every call, so when watermarking many images, decode
+   * once yourself and pass the `ImageBitmap` instead.
+   */
+  image?: Blob | CanvasImageSource;
+  /** Default: `'bottom-right'`. */
+  position?: WatermarkPosition;
+  /** Inset from the edge, as a fraction of the shorter side. Default: `0.03`. */
+  margin?: number;
+  /** 0-1. Default: `0.8`. */
+  opacity?: number;
+  /**
+   * Fraction of the shorter side: the font size for text, the drawn width for
+   * an image. Default: `0.04` for text, `0.15` for an image.
+   */
+  size?: number;
+  /** Text only. Default: white. */
+  color?: string;
+  /** Text only. A CSS font-family list. Default: a system sans stack. */
+  fontFamily?: string;
+  /** Text only. Default: `'600'`. */
+  fontWeight?: string;
+  /**
+   * Text only. An outline behind the text so it stays readable over whatever it
+   * lands on — white text on a snow photo is otherwise invisible. Pass a colour
+   * to override, or `false` to disable. Default: a translucent black.
+   */
+  outline?: string | false;
+}
+
 export interface SanitizeOptions {
   /** Maximum output width in CSS pixels. Default: no limit. */
   maxWidth?: number;
@@ -13,6 +67,8 @@ export interface SanitizeOptions {
   quality?: number;
   /** Container to encode to. Default: `image/webp`, falling back to JPEG where unsupported. */
   outputFormat?: OutputFormat;
+  /** Draws text or a logo onto the output, after resizing and rotation. */
+  watermark?: Watermark;
   /**
    * Hard ceiling on either canvas dimension, applied after `maxWidth`/`maxHeight`.
    * Older iOS Safari refuses to rasterise canvases above roughly 4096x4096 and

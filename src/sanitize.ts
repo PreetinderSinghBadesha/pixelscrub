@@ -2,6 +2,7 @@ import { computeResizePlan, decodeImage, renderToBlob } from './canvas.js';
 import type { ResizeBounds } from './canvas.js';
 import { HEADER_SCAN_BYTES, readEncodedSize, readOrientation } from './exif.js';
 import { isOutputFormat, replaceExtension, resolveOutputFormat } from './formats.js';
+import { prepareWatermark, validateWatermark } from './watermark.js';
 import { PixelScrubError } from './types.js';
 import type { Orientation, OutputFormat, SanitizeOptions } from './types.js';
 
@@ -43,14 +44,24 @@ export async function sanitizeImage(file: File | Blob, options?: SanitizeOptions
   const sourceOrientation = readOrientation(header);
   const encodedSize = readEncodedSize(header);
 
-  const decoded = await decodeImage(file, encodedSize);
+  const [decoded, watermark] = await Promise.all([
+    decodeImage(file, encodedSize),
+    prepareWatermark(options?.watermark),
+  ]);
   try {
     // A browser that rotated during decode has already done our job for us;
     // applying the transform again would rotate the image twice.
     const orientation: Orientation = decoded.orientationAlreadyApplied ? 1 : sourceOrientation;
     const plan = computeResizePlan(decoded.width, decoded.height, orientation, resolved);
     const format = await resolveOutputFormat(resolved.outputFormat);
-    const blob = await renderToBlob(decoded, plan, orientation, format, resolved.quality);
+    const blob = await renderToBlob(
+      decoded,
+      plan,
+      orientation,
+      format,
+      resolved.quality,
+      watermark,
+    );
 
     // The encoder is the authority on what it actually produced: a browser can
     // accept a WebP request and hand back PNG.
@@ -61,6 +72,7 @@ export async function sanitizeImage(file: File | Blob, options?: SanitizeOptions
     });
   } finally {
     decoded.release();
+    watermark?.release();
   }
 }
 
@@ -91,12 +103,7 @@ function assertImageType(file: Blob): void {
   }
 }
 
-/**
- * Also the validation seam for batch runs: bad options fail the same way for
- * every image, so `sanitizeImages` checks them once up front rather than
- * reporting the same programmer error once per file.
- */
-export function resolveOptions(options: SanitizeOptions | undefined): ResolvedOptions {
+function resolveOptions(options: SanitizeOptions | undefined): ResolvedOptions {
   return {
     maxWidth: positiveBound(options?.maxWidth, 'maxWidth'),
     maxHeight: positiveBound(options?.maxHeight, 'maxHeight'),
@@ -107,6 +114,16 @@ export function resolveOptions(options: SanitizeOptions | undefined): ResolvedOp
     quality: resolveQuality(options?.quality),
     outputFormat: resolveFormat(options?.outputFormat),
   };
+}
+
+/**
+ * The validation seam for batch runs: bad options fail the same way for every
+ * image, so `sanitizeImages` checks them once up front rather than reporting
+ * the same programmer error once per file.
+ */
+export function assertOptions(options: SanitizeOptions | undefined): void {
+  resolveOptions(options);
+  validateWatermark(options?.watermark);
 }
 
 /** An omitted bound means "no limit", which the scale math reads as Infinity. */

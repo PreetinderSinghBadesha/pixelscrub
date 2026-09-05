@@ -1,4 +1,4 @@
-import { resolveOptions, sanitizeImage } from './sanitize.js';
+import { assertOptions, sanitizeImage } from './sanitize.js';
 import { PixelScrubError } from './types.js';
 import type { BatchProgress, BatchResult, SanitizeBatchOptions } from './types.js';
 
@@ -41,7 +41,7 @@ export async function sanitizeImages(
   const limit = resolveConcurrency(concurrency);
   // Options that cannot work will not work for any image; say so once, now,
   // instead of returning one identical rejection per file.
-  resolveOptions(sanitizeOptions);
+  assertOptions(sanitizeOptions);
   const results = new Array<BatchResult>(items.length);
   if (items.length === 0) return results;
 

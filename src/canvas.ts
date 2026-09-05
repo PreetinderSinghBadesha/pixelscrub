@@ -1,6 +1,8 @@
 import { PixelScrubError } from './types.js';
 import type { Orientation, OutputFormat, ResizePlan, TransformMatrix } from './types.js';
 import { swapsAxes, withOrientationTag } from './exif.js';
+import { drawWatermark } from './watermark.js';
+import type { PreparedWatermark } from './watermark.js';
 
 /**
  * The decode -> resize -> draw -> encode pipeline. Everything else in the
@@ -280,6 +282,7 @@ export async function renderToBlob(
   orientation: Orientation,
   format: OutputFormat,
   quality: number,
+  watermark: PreparedWatermark | null = null,
 ): Promise<Blob> {
   const opaque = OPAQUE_FORMATS.has(format);
   const canvas = createCanvas(plan.outputWidth, plan.outputHeight);
@@ -302,6 +305,10 @@ export async function renderToBlob(
   } finally {
     prescaled.release();
   }
+
+  // Drawn only after the transform is back to the identity, so the mark sits on
+  // the finished image rather than being rotated along with it.
+  if (watermark) drawWatermark(context, watermark, plan.outputWidth, plan.outputHeight);
 
   try {
     return await canvasToBlob(canvas, format, quality);

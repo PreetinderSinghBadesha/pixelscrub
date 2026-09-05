@@ -24,19 +24,100 @@ export interface DrawImageCall {
   dy: number;
   dw: number;
   dh: number;
+  alpha: number;
+}
+
+export interface TextCall {
+  kind: 'fill' | 'stroke';
+  text: string;
+  x: number;
+  y: number;
+  font: string;
+  color: string;
+  align: string;
+  baseline: string;
+  alpha: number;
+  lineWidth: number;
 }
 
 export class FakeContext2D {
   fillStyle = '';
+  strokeStyle = '';
+  font = '';
+  textAlign = 'start';
+  textBaseline = 'alphabetic';
+  globalAlpha = 1;
+  lineWidth = 1;
+  lineJoin = 'miter';
   imageSmoothingEnabled = false;
   imageSmoothingQuality = 'low';
   readonly transforms: number[][] = [];
   readonly drawImageCalls: DrawImageCall[] = [];
   readonly fillRectCalls: number[][] = [];
+  readonly textCalls: TextCall[] = [];
   readonly attributes: { alpha?: boolean } | undefined;
+  /** Depth of save/restore nesting; must be back to 0 when a render finishes. */
+  saveDepth = 0;
+  maxSaveDepth = 0;
 
   constructor(attributes?: { alpha?: boolean }) {
     this.attributes = attributes;
+  }
+
+  readonly #stack: Record<string, unknown>[] = [];
+
+  /** Real save/restore semantics, so leaked state shows up as a test failure. */
+  save(): void {
+    this.#stack.push(this.#snapshot());
+    this.saveDepth += 1;
+    this.maxSaveDepth = Math.max(this.maxSaveDepth, this.saveDepth);
+  }
+
+  restore(): void {
+    const saved = this.#stack.pop();
+    if (!saved) return;
+    Object.assign(this, saved);
+    this.saveDepth -= 1;
+  }
+
+  #snapshot(): Record<string, unknown> {
+    const { fillStyle, strokeStyle, font, textAlign, textBaseline } = this;
+    const { globalAlpha, lineWidth, lineJoin, imageSmoothingEnabled, imageSmoothingQuality } = this;
+    return {
+      fillStyle,
+      strokeStyle,
+      font,
+      textAlign,
+      textBaseline,
+      globalAlpha,
+      lineWidth,
+      lineJoin,
+      imageSmoothingEnabled,
+      imageSmoothingQuality,
+    };
+  }
+
+  fillText(text: string, x: number, y: number): void {
+    this.textCalls.push(this.#textCall('fill', text, x, y));
+  }
+
+  strokeText(text: string, x: number, y: number): void {
+    this.textCalls.push(this.#textCall('stroke', text, x, y));
+  }
+
+  #textCall(kind: 'fill' | 'stroke', text: string, x: number, y: number): TextCall {
+    return {
+      kind,
+      text,
+      x,
+      y,
+      font: this.font,
+      color: kind === 'fill' ? String(this.fillStyle) : String(this.strokeStyle),
+      align: this.textAlign,
+      baseline: this.textBaseline,
+      alpha: this.globalAlpha,
+      lineWidth: this.lineWidth,
+    };
   }
 
   setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void {
@@ -44,7 +125,7 @@ export class FakeContext2D {
   }
 
   drawImage(source: unknown, dx: number, dy: number, dw: number, dh: number): void {
-    this.drawImageCalls.push({ source, dx, dy, dw, dh });
+    this.drawImageCalls.push({ source, dx, dy, dw, dh, alpha: this.globalAlpha });
   }
 
   fillRect(x: number, y: number, w: number, h: number): void {
