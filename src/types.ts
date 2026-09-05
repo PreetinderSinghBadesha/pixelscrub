@@ -75,6 +75,24 @@ export interface SanitizeOptions {
    * silently returns a blank image, so we clamp before drawing. Default: 4096.
    */
   maxCanvasDimension?: number;
+  /**
+   * When true, if the re-encoded output is larger than the input, the encoder
+   * will try harder to shrink it:
+   *
+   * - **JPEG / WebP**: binary-search for the highest quality that beats the
+   *   input size, stopping at `minQuality`.
+   * - **PNG**: attempt palette (indexed-color) encoding when the image has
+   *   ≤ 256 unique colours, using the browser's built-in `CompressionStream`.
+   *
+   * Default: `true`.
+   */
+  optimizeSize?: boolean;
+  /**
+   * Floor for the quality binary search when `optimizeSize` is active.
+   * Below this the encoder gives up and returns whatever it has. 0-1.
+   * Default: `0.5`.
+   */
+  minQuality?: number;
 }
 
 export interface SanitizeBatchOptions extends SanitizeOptions {

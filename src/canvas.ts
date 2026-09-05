@@ -3,6 +3,13 @@ import type { Orientation, OutputFormat, ResizePlan, TransformMatrix } from './t
 import { swapsAxes, withOrientationTag } from './exif.js';
 import { drawWatermark } from './watermark.js';
 import type { PreparedWatermark } from './watermark.js';
+import { optimizeLossy, optimizePng } from './compress.js';
+
+export interface SizeTarget {
+  targetSize: number;
+  minQuality: number;
+}
+
 
 /**
  * The decode -> resize -> draw -> encode pipeline. Everything else in the
@@ -283,6 +290,7 @@ export async function renderToBlob(
   format: OutputFormat,
   quality: number,
   watermark: PreparedWatermark | null = null,
+  sizeTarget: SizeTarget | null = null,
 ): Promise<Blob> {
   const opaque = OPAQUE_FORMATS.has(format);
   const canvas = createCanvas(plan.outputWidth, plan.outputHeight);
@@ -311,13 +319,30 @@ export async function renderToBlob(
   if (watermark) drawWatermark(context, watermark, plan.outputWidth, plan.outputHeight);
 
   try {
-    return await canvasToBlob(canvas, format, quality);
+    const blob = await canvasToBlob(canvas, format, quality);
+
+    if (!sizeTarget || blob.size <= sizeTarget.targetSize) return blob;
+
+    // The naive encode grew the file — try harder.
+    if (format !== 'image/png') {
+      return optimizeLossy(canvas, format, quality, sizeTarget.minQuality, sizeTarget.targetSize);
+    }
+
+    // For PNG the quality knob does nothing; try a palette encode instead.
+    const optimized = await optimizePng(
+      context,
+      plan.outputWidth,
+      plan.outputHeight,
+      sizeTarget.targetSize,
+    );
+    return optimized ?? blob;
   } finally {
     // iOS holds on to canvas backing stores aggressively; zeroing frees them.
     canvas.width = 0;
     canvas.height = 0;
   }
 }
+
 
 /**
  * Halves the source repeatedly until it is within 2x of the target.

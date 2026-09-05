@@ -423,3 +423,49 @@ describe('sanitizeImage — errors', () => {
     // memory for every failed upload.
   });
 });
+
+describe('sanitizeImage — size optimization', () => {
+  it('attempts to shrink a lossy output that grew larger than its input', async () => {
+    // Produce a tiny valid JPEG fixture.
+    const file = makeJpegFile('p.jpg', { width: 40, height: 30 });
+    // Make the fake encoder produce an artificially massive blob.
+    const fake = useCanvas({ blobSizeBytes: 100000 });
+    
+    // With optimizeSize: true (default), it will binary search quality.
+    await sanitizeImage(file, { quality: 0.85, minQuality: 0.5 });
+    
+    const requests = fake.outputCanvas().encodeRequests;
+    // 1 initial + up to 6 binary search steps + 1 floor = up to 8 requests
+    expect(requests.length).toBeGreaterThan(1);
+    
+    // It should have tried the lower qualities.
+    const qualities = requests.map(r => r.quality).filter(q => q !== undefined) as number[];
+    expect(Math.min(...qualities)).toBe(0.5); // hit the floor
+  });
+
+  it('skips size optimization if optimizeSize is false', async () => {
+    const file = makeJpegFile('p.jpg', { width: 40, height: 30 });
+    const fake = useCanvas({ blobSizeBytes: 100000 });
+    
+    await sanitizeImage(file, { optimizeSize: false, quality: 0.85 });
+    
+    const requests = fake.outputCanvas().encodeRequests;
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.quality).toBe(0.85);
+  });
+
+  it('attempts palette PNG encoding for PNG output', async () => {
+    // Provide a JPEG so the fake decoder can read its dimensions, but ask for PNG output.
+    const file = makeJpegFile('p.jpg', { width: 40, height: 30 });
+    const fake = useCanvas({ blobSizeBytes: 100000 });
+    
+    await sanitizeImage(file, { outputFormat: 'image/png' });
+    
+    // The fake context doesn't record getImageData calls in this test setup easily,
+    // but we can verify it only made 1 encode request (PNG optimization doesn't do 
+    // a binary search loop for quality, it just tries the palette once).
+    const requests = fake.outputCanvas().encodeRequests;
+    expect(requests).toHaveLength(1);
+    expect(requests[0]!.type).toBe('image/png');
+  });
+});

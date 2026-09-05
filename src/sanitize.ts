@@ -1,5 +1,5 @@
 import { computeResizePlan, decodeImage, renderToBlob } from './canvas.js';
-import type { ResizeBounds } from './canvas.js';
+import type { ResizeBounds, SizeTarget } from './canvas.js';
 import { HEADER_SCAN_BYTES, readEncodedSize, readOrientation } from './exif.js';
 import { isOutputFormat, replaceExtension, resolveOutputFormat } from './formats.js';
 import { prepareWatermark, validateWatermark } from './watermark.js';
@@ -7,6 +7,7 @@ import { PixelScrubError } from './types.js';
 import type { Orientation, OutputFormat, SanitizeOptions } from './types.js';
 
 const DEFAULT_QUALITY = 0.85;
+const DEFAULT_MIN_QUALITY = 0.5;
 const DEFAULT_FORMAT: OutputFormat = 'image/webp';
 /** Older iOS Safari silently returns a blank canvas past roughly 4096x4096. */
 const DEFAULT_MAX_CANVAS_DIMENSION = 4096;
@@ -14,6 +15,8 @@ const DEFAULT_MAX_CANVAS_DIMENSION = 4096;
 interface ResolvedOptions extends ResizeBounds {
   quality: number;
   outputFormat: OutputFormat;
+  optimizeSize: boolean;
+  minQuality: number;
 }
 
 /**
@@ -54,6 +57,9 @@ export async function sanitizeImage(file: File | Blob, options?: SanitizeOptions
     const orientation: Orientation = decoded.orientationAlreadyApplied ? 1 : sourceOrientation;
     const plan = computeResizePlan(decoded.width, decoded.height, orientation, resolved);
     const format = await resolveOutputFormat(resolved.outputFormat);
+    const sizeTarget: SizeTarget | null = resolved.optimizeSize
+      ? { targetSize: file.size, minQuality: resolved.minQuality }
+      : null;
     const blob = await renderToBlob(
       decoded,
       plan,
@@ -61,6 +67,7 @@ export async function sanitizeImage(file: File | Blob, options?: SanitizeOptions
       format,
       resolved.quality,
       watermark,
+      sizeTarget,
     );
 
     // The encoder is the authority on what it actually produced: a browser can
@@ -113,6 +120,8 @@ function resolveOptions(options: SanitizeOptions | undefined): ResolvedOptions {
         : positiveBound(options.maxCanvasDimension, 'maxCanvasDimension'),
     quality: resolveQuality(options?.quality),
     outputFormat: resolveFormat(options?.outputFormat),
+    optimizeSize: options?.optimizeSize !== false,
+    minQuality: resolveMinQuality(options?.minQuality),
   };
 }
 
@@ -147,6 +156,17 @@ function resolveQuality(quality: number | undefined): number {
     );
   }
   return Math.min(1, Math.max(0, quality));
+}
+
+function resolveMinQuality(minQuality: number | undefined): number {
+  if (minQuality === undefined) return DEFAULT_MIN_QUALITY;
+  if (typeof minQuality !== 'number' || Number.isNaN(minQuality)) {
+    throw new PixelScrubError(
+      'INVALID_INPUT',
+      'minQuality must be a number between 0 and 1, received ' + describe(minQuality) + '.',
+    );
+  }
+  return Math.min(1, Math.max(0, minQuality));
 }
 
 function resolveFormat(format: OutputFormat | undefined): OutputFormat {

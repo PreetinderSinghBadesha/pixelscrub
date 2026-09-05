@@ -131,6 +131,21 @@ export class FakeContext2D {
   fillRect(x: number, y: number, w: number, h: number): void {
     this.fillRectCalls.push([x, y, w, h]);
   }
+
+  getImageData(_sx: number, _sy: number, sw: number, sh: number): ImageData {
+    // Return synthetic pixel data with 2 unique colours (checkered pattern),
+    // which is well within the 256-colour palette limit.
+    const data = new Uint8ClampedArray(sw * sh * 4);
+    for (let i = 0; i < sw * sh; i++) {
+      const offset = i * 4;
+      const isEven = (i % 2) === 0;
+      data[offset] = isEven ? 255 : 0;     // R
+      data[offset + 1] = isEven ? 0 : 128; // G
+      data[offset + 2] = 0;                // B
+      data[offset + 3] = 255;              // A
+    }
+    return new ImageData(data, sw, sh);
+  }
 }
 
 export class FakeOffscreenCanvas {
@@ -164,6 +179,13 @@ export class FakeOffscreenCanvas {
 
     // Browsers do not reject an unsupported format, they quietly hand back PNG.
     const actual = env?.supportedFormats.has(requested) ? requested : 'image/png';
+
+    if (env?.blobSizeBytes !== null && env?.blobSizeBytes !== undefined) {
+      // Fixed-size blob for testing size-optimisation paths.
+      const padding = new Uint8Array(env.blobSizeBytes);
+      return new Blob([padding], { type: actual });
+    }
+
     const bytes = makeJpeg({ width: this.width || 1, height: this.height || 1 });
     return new Blob([bytes], { type: actual });
   }
@@ -185,6 +207,7 @@ interface FakeEnv {
   objectUrls: Map<string, Blob>;
   supportedFormats: Set<string>;
   failEncode: boolean;
+  blobSizeBytes: number | null;
 }
 
 let activeEnv: FakeEnv | null = null;
@@ -198,6 +221,8 @@ export interface FakeCanvasOptions {
   bitmapSupport?: boolean;
   /** In the legacy path, simulate a browser that auto-rotates from EXIF anyway. */
   autoRotate?: boolean;
+  /** Fix the fake blob size to this many bytes, for testing size-optimisation logic. */
+  blobSizeBytes?: number;
 }
 
 export interface FakeCanvasEnv {
@@ -216,6 +241,7 @@ export function installFakeCanvas(options: FakeCanvasOptions = {}): FakeCanvasEn
     failEncode = false,
     bitmapSupport = true,
     autoRotate = false,
+    blobSizeBytes = null,
   } = options;
 
   const env: FakeEnv = {
@@ -223,6 +249,7 @@ export function installFakeCanvas(options: FakeCanvasOptions = {}): FakeCanvasEn
     objectUrls: new Map(),
     supportedFormats: new Set(supportedFormats),
     failEncode,
+    blobSizeBytes: blobSizeBytes ?? null,
   };
   activeEnv = env;
   resetCaches();

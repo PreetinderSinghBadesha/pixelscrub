@@ -197,6 +197,14 @@
               <option value="image/png">image/png</option>
             </select>
           </div>
+          <div>
+            <label for="optimizeSize">optimizeSize</label>
+            <input id="optimizeSize" type="checkbox" checked style="width: auto; margin-top: 0.6rem;" />
+          </div>
+          <div>
+            <label for="minQuality">minQuality</label>
+            <input id="minQuality" type="number" min="0" max="1" step="0.05" value="0.5" />
+          </div>
         </div>
       </fieldset>
 
@@ -277,7 +285,7 @@
         if (file) run(file);
       });
 
-      for (const id of ['maxWidth', 'maxHeight', 'quality', 'outputFormat']) {
+      for (const id of ['maxWidth', 'maxHeight', 'quality', 'outputFormat', 'optimizeSize', 'minQuality']) {
         $(id).addEventListener('change', () => {
           const file = fileInput.files?.[0] ?? lastFile;
           if (file) run(file);
@@ -296,6 +304,8 @@
           maxHeight: numeric('maxHeight'),
           quality: numeric('quality'),
           outputFormat: $('outputFormat').value,
+          optimizeSize: $('optimizeSize').checked,
+          minQuality: numeric('minQuality'),
         };
       }
 
@@ -316,9 +326,18 @@
           await describe(result, readOrientation(outputHead), 'after');
 
           const saved = 1 - result.size / file.size;
-          $('verdict').textContent =
-            `Sanitized in ${elapsed}ms · ${(saved * 100).toFixed(1)}% smaller · ` +
-            `metadata stripped, orientation baked in.`;
+          const verdict = $('verdict');
+          if (saved >= 0) {
+            verdict.textContent =
+              `Sanitized in ${elapsed}ms · ${(saved * 100).toFixed(1)}% smaller · ` +
+              `metadata stripped, orientation baked in.`;
+            verdict.style.color = '';
+          } else {
+            verdict.textContent =
+              `Sanitized in ${elapsed}ms · ${(Math.abs(saved) * 100).toFixed(1)}% larger · ` +
+              `metadata stripped, orientation baked in.`;
+            verdict.style.color = '#d1495b';
+          }
         } catch (error) {
           $('verdict').textContent = '';
           $('error').textContent = `${error.name}: ${error.message} (code: ${error.code ?? 'n/a'})`;
